@@ -1,6 +1,7 @@
 package br.com.isiflix.facebank.service.cliente;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import br.com.isiflix.facebank.dto.ClienteDTO;
@@ -21,7 +22,11 @@ public class ClienteServiceImpl implements IClienteService {
 		if (teste != null)
 			return null;
 		
-		Cliente cliente = novo.toCliente();	
+		BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
+		Cliente cliente = novo.toCliente();
+		String novaSenha = encoder.encode(cliente.getSenha());
+		cliente.setSenha(novaSenha);
+		
 		return repo.save(cliente).getIdCliente();
 	}
 
