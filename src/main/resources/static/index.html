@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1728">
+  <title>FaceBank | Acesso facial</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #0b1728; color: #eff5ff; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 28px 16px; background: radial-gradient(ellipse at 20% 10%, #1c3553 0, transparent 42%), #0b1728; }
+    main { width: min(100%, 980px); }
+    .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; color: #b7c8df; font-weight: 650; letter-spacing: .02em; }
+    .mark { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; background: #b6f36b; color: #12220c; font-size: 20px; }
+    .layout { display: grid; grid-template-columns: 1fr .85fr; gap: 20px; }
+    .card { border: 1px solid #263a53; border-radius: 22px; background: rgba(17, 33, 52, .94); padding: 26px; box-shadow: 0 22px 70px #0003; }
+    h1 { margin: 0 0 9px; font-size: clamp(26px, 4vw, 36px); letter-spacing: -.04em; }
+    h2 { margin: 0 0 10px; font-size: 18px; }
+    p { color: #9fb2ca; line-height: 1.55; margin: 0 0 20px; }
+    .camera { position: relative; overflow: hidden; aspect-ratio: 4/3; display: grid; place-items: center; border: 1px solid #334a65; border-radius: 16px; background: #07111d; }
+    video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+    .camera-hint { position: absolute; color: #8296af; font-size: 14px; text-align: center; padding: 20px; }
+    .camera-hint.hidden { display: none; }
+    .controls { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+    button { border: 0; border-radius: 11px; padding: 12px 16px; font: inherit; font-weight: 700; cursor: pointer; transition: transform .15s, opacity .15s; }
+    button:hover { transform: translateY(-1px); }
+    button:disabled { cursor: wait; opacity: .55; }
+    .primary { color: #13220c; background: #b6f36b; }
+    .secondary { color: #dce8f6; background: #263a53; }
+    .wide { width: 100%; margin-top: 8px; }
+    label { display: block; color: #b4c4d8; font-size: 13px; font-weight: 650; margin: 13px 0 7px; }
+    input { width: 100%; border: 1px solid #344b66; border-radius: 10px; padding: 12px; background: #0c1a2a; color: #eff5ff; font: inherit; outline: none; }
+    input:focus { border-color: #b6f36b; }
+    .divider { height: 1px; background: #263a53; margin: 22px 0; }
+    .notice { margin-top: 16px; min-height: 25px; font-size: 14px; color: #b6f36b; }
+    .notice.error { color: #ff9d9d; }
+    .account { display: none; margin-top: 14px; padding: 16px; border: 1px solid #49643d; border-radius: 13px; background: #182a1c; }
+    .account strong { display: block; margin-bottom: 6px; font-size: 18px; }
+    .small { font-size: 12px; margin-top: 14px; margin-bottom: 0; }
+    @media (max-width: 760px) { .layout { grid-template-columns: 1fr; } .card { padding: 21px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="brand"><span class="mark">◉</span> FaceBank <span style="font-weight:400">· acesso facial</span></div>
+    <div class="layout">
+      <section class="card">
+        <h1>Entre com seu rosto</h1>
+        <p>Posicione o rosto no centro e mantenha uma boa iluminação.</p>
+        <div class="camera">
+          <video id="video" autoplay playsinline muted></video>
+          <div class="camera-hint" id="cameraHint">Ative a câmera para começar</div>
+        </div>
+        <div class="controls">
+          <button class="secondary" id="startCamera">Ativar câmera</button>
+          <button class="primary" id="login" disabled>Reconhecer e entrar</button>
+        </div>
+        <div class="notice" id="status" role="status" aria-live="polite"></div>
+        <div class="account" id="accountPanel">
+          <strong id="welcome">Acesso autorizado</strong>
+          <span>Sua sessão está ativa neste navegador.</span>
+          <button class="secondary wide" id="logout">Sair da conta</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Cadastrar uma face</h2>
+        <p>Use o ID do cliente já criado na API. Depois do cadastro, treine o modelo para que o login reconheça a nova face.</p>
+        <label for="customerId">ID do cliente</label>
+        <input id="customerId" inputmode="numeric" type="number" min="1" placeholder="Ex.: 12">
+        <button class="primary wide" id="register" disabled>Cadastrar face desta câmera</button>
+        <div class="divider"></div>
+        <h2>Treinar reconhecimento</h2>
+        <p>Execute novamente após cadastrar ou atualizar imagens.</p>
+        <button class="secondary wide" id="train">Treinar modelo</button>
+        <p class="small">Protótipo de desenvolvimento. Não use reconhecimento facial sozinho para proteger operações bancárias reais.</p>
+      </section>
+    </div>
+  </main>
+  <canvas id="canvas" hidden></canvas>
+  <script>
+    const video = document.querySelector('#video');
+    const canvas = document.querySelector('#canvas');
+    const status = document.querySelector('#status');
+    let cameraStream;
+
+    function message(text, error = false) {
+      status.textContent = text;
+      status.classList.toggle('error', error);
+    }
+
+    async function startCamera() {
+      try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }
+        });
+        video.srcObject = cameraStream;
+        document.querySelector('#cameraHint').classList.add('hidden');
+        document.querySelector('#login').disabled = false;
+        document.querySelector('#register').disabled = false;
+        message('Câmera pronta.');
+      } catch (error) {
+        message('Não foi possível abrir a câmera. Permita o acesso e use localhost ou HTTPS.', true);
+      }
+    }
+
+    function captureBase64() {
+      if (!video.videoWidth || !video.videoHeight) throw new Error('Aguarde a imagem da câmera carregar.');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
+    }
+
+    async function request(path, options = {}) {
+      const response = await fetch(path, options);
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.message || 'A API não conseguiu concluir a solicitação.');
+      return body;
+    }
+
+    function setBusy(button, busy, originalText) {
+      button.disabled = busy;
+      button.textContent = busy ? 'Aguarde…' : originalText;
+    }
+
+    document.querySelector('#startCamera').addEventListener('click', startCamera);
+
+    document.querySelector('#login').addEventListener('click', async (event) => {
+      const button = event.currentTarget;
+      setBusy(button, true, 'Reconhecer e entrar');
+      try {
+        const data = captureBase64();
+        const result = await request('/face/recognize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'image/jpeg', data })
+        });
+        if (!result.token) throw new Error('A API não retornou um token de acesso.');
+        sessionStorage.setItem('facebankToken', result.token);
+        const token = result.token.replace(/^Bearer\s+/i, '');
+        const claims = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+        document.querySelector('#welcome').textContent = `Olá, ${claims.sub || 'cliente'}!`;
+        document.querySelector('#accountPanel').style.display = 'block';
+        message('Reconhecimento concluído. Você entrou na sua conta.');
+      } catch (error) {
+        message(error.message || 'Não foi possível reconhecer a face.', true);
+      } finally {
+        setBusy(button, false, 'Reconhecer e entrar');
+        button.disabled = !cameraStream;
+      }
+    });
+
+    document.querySelector('#register').addEventListener('click', async (event) => {
+      const button = event.currentTarget;
+      setBusy(button, true, 'Cadastrar face desta câmera');
+      try {
+        const idCliente = Number(document.querySelector('#customerId').value);
+        if (!Number.isInteger(idCliente) || idCliente < 1) throw new Error('Informe um ID de cliente válido.');
+        const data = captureBase64();
+        const result = await request('/face/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ idCliente, type: 'image/jpeg', data })
+        });
+        message(result.message || 'Face cadastrada. Agora treine o modelo.');
+      } catch (error) {
+        message(error.message || 'Não foi possível cadastrar a face.', true);
+      } finally {
+        setBusy(button, false, 'Cadastrar face desta câmera');
+        button.disabled = !cameraStream;
+      }
+    });
+
+    document.querySelector('#train').addEventListener('click', async (event) => {
+      const button = event.currentTarget;
+      setBusy(button, true, 'Treinar modelo');
+      try {
+        const result = await request('/face/training');
+        message(result.message || 'Modelo treinado.');
+      } catch (error) {
+        message(error.message || 'Não foi possível treinar o modelo.', true);
+      } finally {
+        setBusy(button, false, 'Treinar modelo');
+      }
+    });
+
+    document.querySelector('#logout').addEventListener('click', () => {
+      sessionStorage.removeItem('facebankToken');
+      document.querySelector('#accountPanel').style.display = 'none';
+      message('Você saiu da conta.');
+    });
+
+    window.addEventListener('pagehide', () => cameraStream?.getTracks().forEach(track => track.stop()));
+  </script>
+</body>
+</html>

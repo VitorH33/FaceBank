@@ -71,6 +71,25 @@
       		<groupId>org.springframework.boot</groupId>
       		<artifactId>spring-boot-starter-security</artifactId>
     	</dependency>
+    	
+    	<!-- dependencias do JavaCV -->
+		<dependency>
+			<groupId>org.bytedeco</groupId>
+			<artifactId>javacv</artifactId>
+			<version>1.5.9</version>
+		</dependency>
+		<!-- https://mvnrepository.com/artifact/org.bytedeco/javacv-platform -->
+		<dependency>
+			<groupId>org.bytedeco</groupId>
+			<artifactId>javacv-platform</artifactId>
+			<version>1.5.9</version>
+		</dependency>
+		<!-- para o decoder de imagem -->
+		<dependency>
+			<groupId>jakarta.xml.bind</groupId>
+			<artifactId>jakarta.xml.bind-api</artifactId>
+			<version>4.0.1</version>
+		</dependency>
 		
 		<!-- JJWT -->
 		<dependency>
